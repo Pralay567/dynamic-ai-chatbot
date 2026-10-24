@@ -3,18 +3,23 @@
 .env.*
 !.env.example
 
-# Python
-__pycache__/
-*.py[cod]
+# Python virtual environments
 .venv/
 venv/
+env/
+
+# Python cache and compiled files
+__pycache__/
+*.py[cod]
 .pytest_cache/
 .coverage
 htmlcov/
 
-# Runtime data and logs (may contain personal data)
+# Logs
 logs/
 *.log
+
+# Local databases and stored conversation data
 *.db
 *.db-wal
 *.db-shm
@@ -23,13 +28,11 @@ logs/
 *.sqlite3
 data/*.db*
 
-# Editors / OS
-.idea/
-.vscode/
-.DS_Store
-Thumbs.db
+# Old generator scripts and local stylesheet backups
+script*.py
+/static/*.backup
+/static/*.before-polish
 
-# Build outputs
-*.zip
+# Build artifacts
 dist/
 build/

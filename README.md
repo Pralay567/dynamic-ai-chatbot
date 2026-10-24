@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 # Dynamic AI Chatbot
 
 A modern, web-based conversational AI application built with **Python, Flask, and JavaScript**. The chatbot supports contextual conversations, multiple languages, conversation history, analytics, and customizable appearance.
@@ -245,3 +246,7 @@ No license has been specified in this repository yet. Add a `LICENSE` file if yo
 ---
 
 **Dynamic AI Chatbot** — a configurable conversational AI application built with Python and web technologies.
+=======
+# dynamic-ai-chatbot
+An interactive AI chatbot built with Python, Flask, and Google Gemini API, featuring real-time Indian date and time awareness, multilingual responses, and a responsive chat interface.
+>>>>>>> origin/main
