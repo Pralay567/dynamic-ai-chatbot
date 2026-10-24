@@ -83,7 +83,6 @@ The project was developed and tested in a Python 3.13 environment. Dependency co
 ```bash
 git clone https://github.com/Pralay567/dynamic-ai-chatbot.git
 cd dynamic-ai-chatbot
-cd YOUR_REPOSITORY
 ```
 
 Replace the example repository address with your actual GitHub repository URL.
