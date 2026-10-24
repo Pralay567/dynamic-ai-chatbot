@@ -81,7 +81,8 @@ The project was developed and tested in a Python 3.13 environment. Dependency co
 ### 1. Clone the repository
 
 ```bash
-git clone https://github.com/YOUR_USERNAME/YOUR_REPOSITORY.git
+git clone https://github.com/Pralay567/dynamic-ai-chatbot.git
+cd dynamic-ai-chatbot
 cd YOUR_REPOSITORY
 ```
 
