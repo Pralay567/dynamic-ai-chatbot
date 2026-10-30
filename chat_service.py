@@ -19,6 +19,8 @@ Memory model
 """
 
 from __future__ import annotations
+from datetime import datetime
+from zoneinfo import ZoneInfo
 
 import logging
 import sqlite3
@@ -35,6 +37,25 @@ from prompts import BASE_SYSTEM_PROMPT
 logger = logging.getLogger(LOGGER_NAME)
 
 _ROLE_TO_GEMINI = {"user": "user", "assistant": "model"}
+def build_dynamic_system_prompt() -> str:
+    """Add fresh Indian date/time information to the AI system prompt."""
+    now = datetime.now(ZoneInfo("Asia/Kolkata"))
+
+    datetime_context = (
+        "\n\nCURRENT DATE AND TIME:\n"
+        f"Today's date: {now.strftime('%A, %d %B %Y')}\n"
+        f"Current time: {now.strftime('%I:%M:%S %p')}\n"
+        "Timezone: India Standard Time (IST, UTC+05:30)\n\n"
+        "INSTRUCTIONS:\n"
+        "- Use this date and time when answering questions about today or now.\n"
+        "- Calculate tomorrow, yesterday, and other relative dates from this date.\n"
+        "- Do not say you cannot access the current date or time.\n"
+        "- Do not claim to have live internet access or real-time news.\n"
+        "- For other timezones, convert accurately when possible.\n"
+    )
+
+    return BASE_SYSTEM_PROMPT + datetime_context
+
 
 
 @dataclass(frozen=True)
@@ -101,7 +122,7 @@ class ChatService:
             result = self._client.generate(
                 build_contents(history, message),
                 temperature=temperature,
-                system_instruction=BASE_SYSTEM_PROMPT,
+                system_instruction=build_dynamic_system_prompt(),
             )
         except AIError as exc:
             if conversation_id:

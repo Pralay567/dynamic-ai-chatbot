@@ -23,6 +23,7 @@ import sys
 import time
 import uuid
 from datetime import datetime, timezone
+from zoneinfo import ZoneInfo
 from typing import Any, Dict, Optional
 
 from flask import Flask, Response, g, jsonify, request
@@ -41,6 +42,20 @@ from ratelimit import SlidingWindowLimiter
 _REQUEST_ID_RE = re.compile(r"^[A-Za-z0-9_-]{8,64}$")
 _CONTROL_CHARS_RE = re.compile(r"[\x00-\x08\x0b\x0c\x0e-\x1f\x7f]")
 _LEGACY_CHAT_PATH = "/chat"
+def get_current_datetime_context() -> str:
+    """Generate fresh Indian date/time context for the AI."""
+    now = datetime.now(ZoneInfo("Asia/Kolkata"))
+
+    return (
+        "\n\n[CURRENT DATE AND TIME INFORMATION]\n"
+        f"Current date: {now.strftime('%A, %d %B %Y')}\n"
+        f"Current time: {now.strftime('%I:%M:%S %p')}\n"
+        "Timezone: India Standard Time (Asia/Kolkata, UTC+05:30)\n"
+        "When asked about today's date, the current day, "
+        "or the current time in India, use this information. "
+        "Do not claim that the current date or time is unavailable.\n"
+        "[END DATE AND TIME INFORMATION]"
+    )
 
 _HTTP_ERROR_CODES = {
     400: ("bad_request", "The request could not be understood."),
