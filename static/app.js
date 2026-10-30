@@ -1,6 +1,10 @@
 
-// The API key and model name live ONLY on the server (environment variables).
-// Never put secrets in this file: everything in static/ is public.
+'use strict';
+
+// ============================================================
+// CONFIGURATION — NEVER PUT API KEYS IN FRONTEND CODE
+// ============================================================
+
 const GEMINI_CONFIG = {
     apiEndpoint: '/api/v1/chat',
     healthEndpoint: '/api/v1/health',
@@ -8,10 +12,9 @@ const GEMINI_CONFIG = {
     temperature: 0.7
 };
 
-// Conversation identity.
-// The server stores the conversation using this browser-generated UUID.
 const CONVERSATION_STORAGE_KEY = 'chatbot.conversation_id';
 const UUID_V4_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/;
+
 let conversationId = null;
 
 function generateUuidV4() {
@@ -35,7 +38,7 @@ function saveConversationId(id) {
     try {
         window.localStorage.setItem(CONVERSATION_STORAGE_KEY, id);
     } catch (error) {
-        // Continue without persistent browser storage.
+        // Storage unavailable; use the in-memory ID.
     }
 }
 
@@ -47,13 +50,17 @@ function loadOrCreateConversationId() {
             return stored;
         }
     } catch (error) {
-        // Continue with a new in-memory conversation ID.
+        // Create a new in-memory ID.
     }
 
     const created = generateUuidV4();
     saveConversationId(created);
     return created;
 }
+
+// ============================================================
+// APPLICATION STATE
+// ============================================================
 
 const appState = {
     isBusy: false,
@@ -97,8 +104,8 @@ const appState = {
 const fallbackResponses = {
     apiError: [
         "I'm having trouble connecting to my AI brain right now. Please try again in a moment!",
-        "Oops! I'm experiencing some technical difficulties. Let me try to help you with a basic response.",
-        "I'm temporarily offline for maintenance. Please retry your question shortly."
+        "Oops! I'm experiencing some technical difficulties. Please try again.",
+        "I'm temporarily offline. Please retry your question shortly."
     ],
 
     networkError: [
@@ -107,7 +114,7 @@ const fallbackResponses = {
     ],
 
     genericError: [
-        "Something unexpected happened. Let me try to process your request again.",
+        "Something unexpected happened. Please try again.",
         "I encountered an error while thinking. Could you please rephrase your question?"
     ]
 };
@@ -133,7 +140,7 @@ const elements = {
 };
 
 // ============================================================
-// APPLICATION INITIALIZATION
+// INITIALIZATION
 // ============================================================
 
 document.addEventListener('DOMContentLoaded', function () {
@@ -143,8 +150,8 @@ document.addEventListener('DOMContentLoaded', function () {
     initializeApp();
 
     conversationId = loadOrCreateConversationId();
-    restoreConversation();
 
+    restoreConversation();
     setupEventListeners();
     updateAnalytics();
     startSessionTimer();
@@ -204,10 +211,10 @@ function setupEventListeners() {
     }
 
     elements.quickReplies.forEach(btn => {
-        btn.addEventListener('click', (e) => {
-            const message = e.target.getAttribute('data-message');
+        btn.addEventListener('click', e => {
+            const message = e.currentTarget.getAttribute('data-message');
 
-            if (elements.messageInput) {
+            if (elements.messageInput && message) {
                 elements.messageInput.value = message;
                 sendMessage();
             }
@@ -215,20 +222,16 @@ function setupEventListeners() {
     });
 
     elements.navItems.forEach(btn => {
-        btn.addEventListener('click', (e) => {
+        btn.addEventListener('click', e => {
             e.preventDefault();
-
-            const section = e.currentTarget.getAttribute('data-section');
-            switchSection(section);
+            switchSection(e.currentTarget.getAttribute('data-section'));
         });
     });
 
     elements.mobileNavItems.forEach(btn => {
-        btn.addEventListener('click', (e) => {
+        btn.addEventListener('click', e => {
             e.preventDefault();
-
-            const section = e.currentTarget.getAttribute('data-section');
-            switchSection(section);
+            switchSection(e.currentTarget.getAttribute('data-section'));
         });
     });
 
@@ -237,7 +240,7 @@ function setupEventListeners() {
     }
 
     if (elements.themeSelect) {
-        elements.themeSelect.addEventListener('change', (e) => {
+        elements.themeSelect.addEventListener('change', e => {
             appState.settings.theme = e.target.value;
             applyTheme();
         });
@@ -250,22 +253,20 @@ function setupSettingsListeners() {
     const languageSelect = document.getElementById('languageSelect');
     const temperatureSlider = document.getElementById('temperatureSlider');
     const temperatureValue = document.getElementById('temperatureValue');
-
     const showTimestamps = document.getElementById('showTimestamps');
     const enableSentiment = document.getElementById('enableSentiment');
     const contextMemory = document.getElementById('contextMemory');
-
     const exportChat = document.getElementById('exportChat');
     const clearChat = document.getElementById('clearChat');
 
     if (languageSelect) {
-        languageSelect.addEventListener('change', (e) => {
+        languageSelect.addEventListener('change', e => {
             appState.settings.language = e.target.value;
         });
     }
 
     if (temperatureSlider && temperatureValue) {
-        temperatureSlider.addEventListener('input', (e) => {
+        temperatureSlider.addEventListener('input', e => {
             const value = parseFloat(e.target.value);
 
             appState.settings.temperature = value;
@@ -275,21 +276,21 @@ function setupSettingsListeners() {
     }
 
     if (showTimestamps) {
-        showTimestamps.addEventListener('change', (e) => {
+        showTimestamps.addEventListener('change', e => {
             appState.settings.showTimestamps = e.target.checked;
             rerenderMessages();
         });
     }
 
     if (enableSentiment) {
-        enableSentiment.addEventListener('change', (e) => {
+        enableSentiment.addEventListener('change', e => {
             appState.settings.enableSentiment = e.target.checked;
             rerenderMessages();
         });
     }
 
     if (contextMemory) {
-        contextMemory.addEventListener('change', (e) => {
+        contextMemory.addEventListener('change', e => {
             appState.settings.contextMemory = e.target.checked;
         });
     }
@@ -306,16 +307,16 @@ function setupSettingsListeners() {
 function handleInputChange(e) {
     const length = e.target.value.length;
 
-    if (elements.charCount) {
-        elements.charCount.textContent = `${length}/1000`;
+    if (!elements.charCount) return;
 
-        if (length >= 950) {
-            elements.charCount.style.color = 'var(--color-error)';
-        } else if (length >= 900) {
-            elements.charCount.style.color = 'var(--color-warning)';
-        } else {
-            elements.charCount.style.color = 'var(--color-text-secondary)';
-        }
+    elements.charCount.textContent = `${length}/1000`;
+
+    if (length >= 950) {
+        elements.charCount.style.color = 'var(--color-error)';
+    } else if (length >= 900) {
+        elements.charCount.style.color = 'var(--color-warning)';
+    } else {
+        elements.charCount.style.color = 'var(--color-text-secondary)';
     }
 }
 
@@ -335,8 +336,7 @@ async function sendMessage() {
 
     const messageText = elements.messageInput.value.trim();
 
-    if (!messageText) return;
-    if (appState.isBusy) return;
+    if (!messageText || appState.isBusy) return;
 
     appState.isBusy = true;
 
@@ -464,10 +464,7 @@ async function restoreConversation() {
         updateSessionInfo();
 
     } catch (error) {
-        console.warn(
-            'Could not restore the previous conversation:',
-            error
-        );
+        console.warn('Could not restore the previous conversation:', error);
     } finally {
         appState.isBusy = false;
     }
@@ -504,15 +501,11 @@ async function generateAIResponse(userMessage) {
             try {
                 const errorBody = await response.json();
 
-                if (
-                    errorBody &&
-                    errorBody.error &&
-                    errorBody.error.message
-                ) {
+                if (errorBody?.error?.message) {
                     failure.userMessage = errorBody.error.message;
                 }
             } catch (parseError) {
-                // Use the generic error message if JSON parsing fails.
+                // Use a generic message if the error body is not JSON.
             }
 
             throw failure;
@@ -552,7 +545,7 @@ function getRandomFallbackResponse(error) {
 // ============================================================
 
 function analyzeSentiment(text) {
-    const lowerText = text.toLowerCase();
+    const lowerText = String(text).toLowerCase();
 
     const positiveWords = [
         'good', 'great', 'awesome', 'excellent', 'amazing',
@@ -584,75 +577,74 @@ function analyzeSentiment(text) {
 }
 
 // ============================================================
-// SAFE MARKDOWN RENDERING
+// SAFE MARKDOWN RENDERER
 // ============================================================
 
-// Render a safe subset of Markdown without inserting AI-generated
-// HTML directly into the page.
+// Supported formatting:
+// **bold**, __bold__, *italic*, _italic_, `inline code`
+// # headings, bullet lists, numbered lists, Markdown tables,
+// fenced code blocks, blockquotes and horizontal rules.
 //
-// Supported:
-// **bold**
-// __bold__
-// *italic*
-// _italic_
-// `inline code`
-// # headings
-// - bullet lists
-// 1. numbered lists
-// ``` fenced code blocks
-//
-// All AI-generated text is inserted using text nodes or textContent.
+// AI text is never directly inserted as executable HTML.
 
-function appendMarkdownInline(parent, text) {
-    const tokenPattern =
+function appendMarkdownInline(parent, value) {
+    const text = String(value ?? '');
+
+    const pattern =
         /(`[^`\n]+`|\*\*[^*\n]+\*\*|__[^_\n]+__|(?<!\*)\*[^*\n]+\*(?!\*)|(?<!_)_[^_\n]+_(?!_))/g;
 
-    let previousIndex = 0;
+    let position = 0;
 
-    for (const match of text.matchAll(tokenPattern)) {
-        if (match.index > previousIndex) {
+    for (const match of text.matchAll(pattern)) {
+        if (match.index > position) {
             parent.appendChild(
                 document.createTextNode(
-                    text.slice(previousIndex, match.index)
+                    text.slice(position, match.index)
                 )
             );
         }
 
         const token = match[0];
+        const strong =
+            token.startsWith('**') || token.startsWith('__');
+        const code = token.startsWith('`');
 
-        let tag;
-        let inner;
+        const element = document.createElement(
+            code ? 'code' : strong ? 'strong' : 'em'
+        );
 
-        if (
-            token.startsWith('**') ||
-            token.startsWith('__')
-        ) {
-            tag = 'strong';
-            inner = token.slice(2, -2);
+        element.textContent = token.slice(
+            strong ? 2 : 1,
+            strong ? -2 : -1
+        );
 
-        } else if (token.startsWith('`')) {
-            tag = 'code';
-            inner = token.slice(1, -1);
-
-        } else {
-            tag = 'em';
-            inner = token.slice(1, -1);
-        }
-
-        const element = document.createElement(tag);
-        element.textContent = inner;
         parent.appendChild(element);
-
-        previousIndex = match.index + token.length;
+        position = match.index + token.length;
     }
 
-    if (previousIndex < text.length) {
+    if (position < text.length) {
         parent.appendChild(
-            document.createTextNode(
-                text.slice(previousIndex)
-            )
+            document.createTextNode(text.slice(position))
         );
     }
+}
+
+function markdownTableCells(line) {
+    return String(line)
+        .trim()
+        .replace(/^\|/, '')
+        .replace(/\|$/, '')
+        .split('|')
+        .map(cell => cell.trim());
+}
+
+function isMarkdownTableSeparator(line, expectedColumns) {
+    const cells = markdownTableCells(line);
+
+    return (
+        cells.length === expectedColumns &&
+        cells.every(cell => /^:?-{3,}:?$/.test(cell))
+    );
 }
 
 function renderSafeMarkdown(container, markdown) {
@@ -661,110 +653,288 @@ function renderSafeMarkdown(container, markdown) {
         .split('\n');
 
     let list = null;
-    let listType = null;
-    let codeBlock = null;
-    let inCodeBlock = false;
+    let index = 0;
 
-    for (const line of lines) {
+    while (index < lines.length) {
+        const line = lines[index];
+        const trimmed = line.trim();
 
-        // Fenced code blocks
+        // ----------------------------------------------------
+        // FENCED CODE BLOCKS
+        // ----------------------------------------------------
+
         if (/^\s*```/.test(line)) {
             list = null;
-            listType = null;
 
-            if (inCodeBlock) {
-                inCodeBlock = false;
-                codeBlock = null;
-            } else {
-                const pre = document.createElement('pre');
-                codeBlock = document.createElement('code');
+            const codeLines = [];
+            index++;
 
-                pre.appendChild(codeBlock);
-                container.appendChild(pre);
-
-                inCodeBlock = true;
+            while (
+                index < lines.length &&
+                !/^\s*```\s*$/.test(lines[index])
+            ) {
+                codeLines.push(lines[index]);
+                index++;
             }
 
+            if (index < lines.length) {
+                index++;
+            }
+
+            const pre = document.createElement('pre');
+            const code = document.createElement('code');
+
+            code.textContent = codeLines.join('\n');
+
+            pre.style.cssText = [
+                'overflow-x:auto',
+                'padding:12px',
+                'border-radius:8px',
+                'background:rgba(128,128,128,0.12)',
+                'white-space:pre',
+                'margin:10px 0'
+            ].join(';');
+
+            pre.appendChild(code);
+            container.appendChild(pre);
+
             continue;
         }
 
-        if (inCodeBlock) {
-            codeBlock.textContent +=
-                (codeBlock.textContent ? '\n' : '') + line;
+        // ----------------------------------------------------
+        // EMPTY LINES
+        // ----------------------------------------------------
 
-            continue;
-        }
-
-        // Empty lines
-        if (!line.trim()) {
+        if (!trimmed) {
             list = null;
-            listType = null;
-
-            const gap = document.createElement('div');
-            gap.style.height = '0.5em';
-
-            container.appendChild(gap);
+            index++;
             continue;
         }
 
-        // Markdown headings
+        // ----------------------------------------------------
+        // MARKDOWN TABLES
+        // ----------------------------------------------------
+
+        const headers = markdownTableCells(line);
+
+        if (
+            line.includes('|') &&
+            index + 1 < lines.length &&
+            isMarkdownTableSeparator(
+                lines[index + 1],
+                headers.length
+            )
+        ) {
+            list = null;
+
+            const wrapper = document.createElement('div');
+
+            wrapper.style.cssText = [
+                'overflow-x:auto',
+                'max-width:100%',
+                'margin:10px 0'
+            ].join(';');
+
+            const table = document.createElement('table');
+
+            table.style.cssText = [
+                'border-collapse:collapse',
+                'width:100%',
+                'font-size:0.9em'
+            ].join(';');
+
+            const thead = document.createElement('thead');
+            const headerRow = document.createElement('tr');
+
+            headers.forEach(header => {
+                const th = document.createElement('th');
+
+                th.style.cssText = [
+                    'border:1px solid #8886',
+                    'padding:8px',
+                    'text-align:left',
+                    'background:rgba(128,128,128,0.12)',
+                    'font-weight:700'
+                ].join(';');
+
+                appendMarkdownInline(th, header);
+                headerRow.appendChild(th);
+            });
+
+            thead.appendChild(headerRow);
+            table.appendChild(thead);
+
+            const tbody = document.createElement('tbody');
+
+            index += 2;
+
+            while (
+                index < lines.length &&
+                lines[index].trim() &&
+                lines[index].includes('|')
+            ) {
+                const cells = markdownTableCells(lines[index]);
+                const row = document.createElement('tr');
+
+                headers.forEach((header, columnIndex) => {
+                    const td = document.createElement('td');
+
+                    td.style.cssText = [
+                        'border:1px solid #8886',
+                        'padding:8px',
+                        'vertical-align:top'
+                    ].join(';');
+
+                    appendMarkdownInline(
+                        td,
+                        cells[columnIndex] ?? ''
+                    );
+
+                    row.appendChild(td);
+                });
+
+                tbody.appendChild(row);
+                index++;
+            }
+
+            table.appendChild(tbody);
+            wrapper.appendChild(table);
+            container.appendChild(wrapper);
+
+            continue;
+        }
+
+        // ----------------------------------------------------
+        // HEADINGS
+        // ----------------------------------------------------
+
         const heading = line.match(/^\s*(#{1,6})\s+(.+)$/);
 
         if (heading) {
             list = null;
-            listType = null;
 
-            const title = document.createElement('div');
+            const level = heading[1].length;
+            const element = document.createElement(`h${level}`);
 
-            title.style.fontWeight = '700';
-            title.style.margin = '0.35em 0';
-            title.style.fontSize =
-                heading[1].length <= 2 ? '1.12em' : '1em';
+            element.style.cssText = [
+                'font-weight:700',
+                'margin:0.7em 0 0.35em',
+                `font-size:${
+                    level === 1 ? '1.35em' :
+                    level === 2 ? '1.2em' :
+                    level === 3 ? '1.1em' : '1em'
+                }`
+            ].join(';');
 
-            appendMarkdownInline(title, heading[2]);
-            container.appendChild(title);
+            appendMarkdownInline(element, heading[2]);
+            container.appendChild(element);
 
+            index++;
             continue;
         }
 
-        // Bullet lists and numbered lists
+        // ----------------------------------------------------
+        // HORIZONTAL RULES
+        // ----------------------------------------------------
+
+        if (/^\s*(?:-{3,}|\*{3,}|_{3,})\s*$/.test(line)) {
+            list = null;
+
+            const hr = document.createElement('hr');
+
+            hr.style.cssText =
+                'border:0;border-top:1px solid #8886;margin:12px 0';
+
+            container.appendChild(hr);
+
+            index++;
+            continue;
+        }
+
+        // ----------------------------------------------------
+        // BLOCKQUOTES
+        // ----------------------------------------------------
+
+        const quote = line.match(/^\s*>\s?(.*)$/);
+
+        if (quote) {
+            list = null;
+
+            const blockquote = document.createElement('blockquote');
+
+            blockquote.style.cssText = [
+                'border-left:3px solid #888',
+                'padding-left:12px',
+                'margin:8px 0',
+                'opacity:0.9'
+            ].join(';');
+
+            appendMarkdownInline(blockquote, quote[1]);
+            container.appendChild(blockquote);
+
+            index++;
+            continue;
+        }
+
+        // ----------------------------------------------------
+        // BULLET LISTS AND NUMBERED LISTS
+        // ----------------------------------------------------
+
         const bullet = line.match(/^\s*[-*+]\s+(.+)$/);
-        const numbered = line.match(/^\s*\d+[.)]\s+(.+)$/);
+        const numbered = line.match(/^\s*(\d+)[.)]\s+(.+)$/);
 
         if (bullet || numbered) {
-            const desiredType = bullet ? 'ul' : 'ol';
+            const type = bullet ? 'ul' : 'ol';
 
-            if (!list || listType !== desiredType) {
-                list = document.createElement(desiredType);
+            if (!list || list.tagName.toLowerCase() !== type) {
+                list = document.createElement(type);
 
-                list.style.paddingLeft = '1.5em';
-                list.style.margin = '0.3em 0';
+                list.style.cssText =
+                    'padding-left:1.6em;margin:0.4em 0';
+
+                if (numbered) {
+                    list.start = Number(numbered[1]);
+                }
 
                 container.appendChild(list);
-                listType = desiredType;
             }
 
             const item = document.createElement('li');
 
+            item.style.marginBottom = '0.3em';
+
             appendMarkdownInline(
                 item,
-                (bullet || numbered)[1]
+                bullet ? bullet[1] : numbered[2]
             );
 
             list.appendChild(item);
+
+            index++;
             continue;
         }
 
+        // ----------------------------------------------------
+        // NORMAL TEXT
+        // ----------------------------------------------------
+
         list = null;
-        listType = null;
 
-        // Normal text
-        const paragraphLine = document.createElement('div');
+        const paragraph = document.createElement('div');
 
-        appendMarkdownInline(paragraphLine, line);
-        container.appendChild(paragraphLine);
+        paragraph.style.lineHeight = '1.6';
+
+        appendMarkdownInline(paragraph, line);
+        container.appendChild(paragraph);
+
+        index++;
     }
 }
+
+// Expose the function for browser Console verification.
+window.renderSafeMarkdown = renderSafeMarkdown;
+
+console.info('Chatbot Markdown renderer v2 loaded');
 
 // ============================================================
 // MESSAGE RENDERING
@@ -778,6 +948,7 @@ function renderMessage(message) {
 
     const avatar = document.createElement('div');
     avatar.className = 'message-avatar';
+
     avatar.textContent = message.sender === 'bot' ? '🤖' : '👤';
 
     const content = document.createElement('div');
@@ -786,8 +957,7 @@ function renderMessage(message) {
     const textDiv = document.createElement('div');
     textDiv.className = 'message-text';
 
-    // Markdown formatting is applied ONLY to AI responses.
-    // User messages and error messages remain plain text.
+    // Apply Markdown formatting only to AI messages.
     if (message.sender === 'bot' && !message.isError) {
         renderSafeMarkdown(textDiv, message.text);
     } else {
@@ -828,6 +998,7 @@ function renderMessage(message) {
     messageDiv.appendChild(content);
 
     elements.chatMessages.appendChild(messageDiv);
+
     scrollToBottom();
 }
 
@@ -835,10 +1006,8 @@ function getSentimentIcon(sentiment) {
     switch (sentiment) {
         case 'positive':
             return '😊';
-
         case 'negative':
             return '😔';
-
         default:
             return '😐';
     }
@@ -865,7 +1034,11 @@ function scrollToBottom() {
 }
 
 function formatTime(date) {
-    return date.toLocaleTimeString('en-US', {
+    const timestamp = date instanceof Date
+        ? date
+        : new Date(date);
+
+    return timestamp.toLocaleTimeString('en-US', {
         hour: 'numeric',
         minute: '2-digit',
         hour12: true
@@ -880,9 +1053,7 @@ function switchSection(sectionName) {
     elements.navItems.forEach(nav => {
         nav.classList.remove('active');
 
-        const navSection = nav.getAttribute('data-section');
-
-        if (navSection === sectionName) {
+        if (nav.getAttribute('data-section') === sectionName) {
             nav.classList.add('active');
         }
     });
@@ -890,9 +1061,7 @@ function switchSection(sectionName) {
     elements.mobileNavItems.forEach(nav => {
         nav.classList.remove('active');
 
-        const navSection = nav.getAttribute('data-section');
-
-        if (navSection === sectionName) {
+        if (nav.getAttribute('data-section') === sectionName) {
             nav.classList.add('active');
         }
     });
@@ -900,9 +1069,7 @@ function switchSection(sectionName) {
     elements.contentSections.forEach(section => {
         section.classList.remove('active');
 
-        const sectionId = section.id;
-
-        if (sectionId === `${sectionName}-section`) {
+        if (section.id === `${sectionName}-section`) {
             section.classList.add('active');
         }
     });
@@ -915,7 +1082,7 @@ function switchSection(sectionName) {
 }
 
 // ============================================================
-// THEME SETTINGS
+// THEME
 // ============================================================
 
 function toggleTheme() {
@@ -934,10 +1101,9 @@ function toggleTheme() {
         const icon = elements.themeToggle.querySelector('i');
 
         if (icon) {
-            icon.className =
-                newTheme === 'dark'
-                    ? 'fas fa-sun'
-                    : 'fas fa-moon';
+            icon.className = newTheme === 'dark'
+                ? 'fas fa-sun'
+                : 'fas fa-moon';
         }
     }
 
@@ -966,10 +1132,9 @@ function applyTheme() {
         const icon = elements.themeToggle.querySelector('i');
 
         if (icon) {
-            icon.className =
-                theme === 'dark'
-                    ? 'fas fa-sun'
-                    : 'fas fa-moon';
+            icon.className = theme === 'dark'
+                ? 'fas fa-sun'
+                : 'fas fa-moon';
         }
     }
 }
@@ -1023,26 +1188,22 @@ function updateAnalytics() {
         avgResponseTime &&
         appState.analytics.responseTimes.length > 0
     ) {
+        const times = appState.analytics.responseTimes;
+
         const avg =
-            appState.analytics.responseTimes.reduce(
-                (a, b) => a + b,
-                0
-            ) / appState.analytics.responseTimes.length;
+            times.reduce((a, b) => a + b, 0) / times.length;
 
         avgResponseTime.textContent =
             `${(avg / 1000).toFixed(1)}s`;
     }
 
     if (apiSuccessRate) {
-        const total =
-            appState.analytics.apiCalls.successful +
-            appState.analytics.apiCalls.failed;
+        const successful = appState.analytics.apiCalls.successful;
+        const failed = appState.analytics.apiCalls.failed;
+        const total = successful + failed;
 
         const rate = total > 0
-            ? (
-                appState.analytics.apiCalls.successful /
-                total * 100
-            ).toFixed(0)
+            ? (successful / total * 100).toFixed(0)
             : 100;
 
         apiSuccessRate.textContent = `${rate}%`;
@@ -1052,25 +1213,20 @@ function updateAnalytics() {
 }
 
 // ============================================================
-// CHART INITIALIZATION
+// CHARTS
 // ============================================================
 
 function initializeCharts() {
     const sentimentCtx = document.getElementById('sentimentChart');
 
-    if (sentimentCtx && !sentimentCtx.chartInstance) {
-        const sentimentData =
-            appState.analytics.sentimentCounts;
+    if (sentimentCtx && !sentimentCtx.chartInstance && typeof Chart !== 'undefined') {
+        const sentimentData = appState.analytics.sentimentCounts;
 
         sentimentCtx.chartInstance = new Chart(sentimentCtx, {
             type: 'doughnut',
 
             data: {
-                labels: [
-                    'Positive',
-                    'Negative',
-                    'Neutral'
-                ],
+                labels: ['Positive', 'Negative', 'Neutral'],
 
                 datasets: [{
                     data: [
@@ -1105,7 +1261,11 @@ function initializeCharts() {
     const responseTimeCtx =
         document.getElementById('responseTimeChart');
 
-    if (responseTimeCtx && !responseTimeCtx.chartInstance) {
+    if (
+        responseTimeCtx &&
+        !responseTimeCtx.chartInstance &&
+        typeof Chart !== 'undefined'
+    ) {
         const responseTimes =
             appState.analytics.responseTimes
                 .slice(-10)
@@ -1159,12 +1319,10 @@ function initializeCharts() {
 }
 
 function updateCharts() {
-    const sentimentCtx =
-        document.getElementById('sentimentChart');
+    const sentimentCtx = document.getElementById('sentimentChart');
 
     if (sentimentCtx && sentimentCtx.chartInstance) {
-        const sentimentData =
-            appState.analytics.sentimentCounts;
+        const sentimentData = appState.analytics.sentimentCounts;
 
         sentimentCtx.chartInstance.data.datasets[0].data = [
             sentimentData.positive,
@@ -1190,6 +1348,7 @@ function updateCharts() {
         );
 
         responseTimeCtx.chartInstance.data.labels = labels;
+
         responseTimeCtx.chartInstance.data.datasets[0].data =
             responseTimes;
 
@@ -1215,20 +1374,19 @@ function updateSessionInfo() {
 
     const userMessages =
         appState.currentConversation.messages
-            .filter(m => m.sender === 'user')
+            .filter(message => message.sender === 'user')
             .slice(-3);
 
     if (userMessages.length > 0) {
-        const sentiments =
-            userMessages.map(m => m.sentiment);
+        const sentiments = userMessages.map(message => message.sentiment);
 
-        const mostCommonSentiment =
-            sentiments.reduce((a, b, i, arr) =>
+        const mostCommonSentiment = sentiments.reduce(
+            (a, b, i, arr) =>
                 arr.filter(v => v === a).length >=
                 arr.filter(v => v === b).length
                     ? a
                     : b
-            );
+        );
 
         if (elements.sessionSentiment) {
             elements.sessionSentiment.textContent =
@@ -1254,6 +1412,7 @@ function updateTopics(message) {
 
             if (elements.recentTopics) {
                 const topicDiv = document.createElement('div');
+
                 topicDiv.className = 'topic-item';
                 topicDiv.textContent = topic;
 
@@ -1294,9 +1453,7 @@ function extractTopics(text) {
         }
     });
 
-    return topics.length > 0
-        ? topics
-        : ['General'];
+    return topics.length > 0 ? topics : ['General'];
 }
 
 // ============================================================
@@ -1329,13 +1486,12 @@ function updateApiStatus(isOnline) {
 }
 
 async function testApiConnection() {
-    // Checks server configuration without sending an AI request.
     try {
-        const response =
-            await fetch(GEMINI_CONFIG.healthEndpoint);
+        const response = await fetch(GEMINI_CONFIG.healthEndpoint);
 
-        const health =
-            response.ok ? await response.json() : null;
+        const health = response.ok
+            ? await response.json()
+            : null;
 
         updateApiStatus(
             Boolean(
@@ -1364,20 +1520,19 @@ function startSessionTimer() {
         );
 
         if (elements.sessionDuration) {
-            elements.sessionDuration.textContent =
-                `${duration}m`;
+            elements.sessionDuration.textContent = `${duration}m`;
         }
     }, 60000);
 }
 
 // ============================================================
-// RERENDER CHAT MESSAGES
+// RERENDER CHAT
 // ============================================================
 
 function rerenderMessages() {
     if (!elements.chatMessages) return;
 
-    elements.chatMessages.innerHTML = '';
+    elements.chatMessages.replaceChildren();
 
     appState.currentConversation.messages.forEach(message => {
         renderMessage(message);
@@ -1387,7 +1542,7 @@ function rerenderMessages() {
 }
 
 // ============================================================
-// EXPORT CHAT HISTORY
+// EXPORT CHAT
 // ============================================================
 
 function exportChatHistory() {
@@ -1396,8 +1551,7 @@ function exportChatHistory() {
         conversationId: conversationId,
         analytics: appState.analytics,
         exportDate: new Date().toISOString(),
-        messageCount:
-            appState.currentConversation.messages.length
+        messageCount: appState.currentConversation.messages.length
     };
 
     const dataStr = JSON.stringify(chatData, null, 2);
@@ -1408,17 +1562,20 @@ function exportChatHistory() {
     );
 
     const link = document.createElement('a');
+    const url = URL.createObjectURL(dataBlob);
 
-    link.href = URL.createObjectURL(dataBlob);
+    link.href = url;
 
     link.download =
         `chat-history-${new Date().toISOString().split('T')[0]}.json`;
 
     link.click();
+
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
 }
 
 // ============================================================
-// CLEAR CHAT HISTORY
+// CLEAR CHAT
 // ============================================================
 
 async function clearChatHistory() {
@@ -1428,7 +1585,6 @@ async function clearChatHistory() {
         return;
     }
 
-    // Delete on the server before clearing the browser.
     try {
         const response = await fetch(
             `${GEMINI_CONFIG.conversationsEndpoint}/${conversationId}`,
@@ -1445,10 +1601,10 @@ async function clearChatHistory() {
         alert(
             'Could not delete the conversation on the server, so nothing was cleared. Please try again.'
         );
+
         return;
     }
 
-    // Create a new conversation.
     conversationId = generateUuidV4();
     saveConversationId(conversationId);
 
@@ -1474,12 +1630,17 @@ async function clearChatHistory() {
     };
 
     if (elements.chatMessages) {
-        elements.chatMessages.innerHTML = '';
+        elements.chatMessages.replaceChildren();
     }
 
     if (elements.recentTopics) {
-        elements.recentTopics.innerHTML =
-            '<div class="topic-item">General</div>';
+        elements.recentTopics.replaceChildren();
+
+        const generalTopic = document.createElement('div');
+        generalTopic.className = 'topic-item';
+        generalTopic.textContent = 'General';
+
+        elements.recentTopics.appendChild(generalTopic);
     }
 
     initializeApp();
